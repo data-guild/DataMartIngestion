@@ -1,11 +1,11 @@
+import java.io.{File, FileInputStream}
 import java.sql.DriverManager
 import java.sql.Connection
+import java.util.Properties
 
-import org.apache.spark.sql.{types, _}
+import org.apache.spark.sql._
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.types._
-
-
 
 object DataMartIngestion {
   val stationSchema = new StructType()
@@ -37,20 +37,37 @@ object DataMartIngestion {
 
     val fileName = "src/main/resources/stations_nyc"
     prepareParquetFile(spark, fileName)
+    val stationInfoDF = spark
+      .read
+      .parquet(fileName)
+      .select(col("id").as("stationid"), col("name"), col("longitude"), col("latitude"))
 
-    val stationDF = spark.read.parquet(fileName).select("id", "name", "longitude", "latitude", "empty_slots", "free_bikes")
+    val dbProperties: Properties = getDbProperties
+    val jdbcUrl = dbProperties.getProperty("jdbcUrl")
+    stationInfoDF.write.mode(SaveMode.Overwrite).jdbc(jdbcUrl, "stations", dbProperties)
 
-    //    // create the statement, and run the select query
-//    val connection = connectToDb()
-//    val statement = connection.createStatement()
-//    val resultSet = statement.executeQuery("SELECT * FROM stations")
-//
-//    while ( resultSet.next() ) {
-//      println("result stationId: ", resultSet.getString(1))
-//      println("result name: ", resultSet.getString(2))
-//      println("result location: ", resultSet.getString(3))
-//    }
-//    connection.close()
+    val connection = connectToDb()
+    val statement = connection.createStatement()
+    val resultSet = statement.executeQuery("SELECT * FROM stations")
+
+    while ( resultSet.next() ) {
+      println(resultSet.getString(1),
+        resultSet.getString(2),
+        resultSet.getString(3),
+        resultSet.getString(4))
+    }
+    val count = statement.executeQuery("SELECT count(*) FROM stations")
+    count.next()
+    println("ROW COUNT: " + count.getInt(1))
+
+    connection.close()
+  }
+
+  private def getDbProperties = {
+    val dbProperties = new Properties
+    dbProperties.load(new FileInputStream(new File("src/main/scala/postgres/config/db-properties.flat")))
+    dbProperties.setProperty("Driver", "org.postgresql.Driver")
+    dbProperties
   }
 
   def connectToDb(): Connection = {
