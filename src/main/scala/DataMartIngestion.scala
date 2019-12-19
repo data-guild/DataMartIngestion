@@ -65,7 +65,7 @@ object DataMartIngestion {
 
   private def getDbProperties = {
     val dbProperties = new Properties
-    dbProperties.load(new FileInputStream(new File("src/main/scala/postgres/config/db-properties.flat")))
+    dbProperties.load(new FileInputStream(new File("src/main/scala/postgres/config/db-properties.properties")))
     dbProperties.setProperty("Driver", "org.postgresql.Driver")
     dbProperties
   }
